@@ -1,7 +1,9 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import Literal
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file='.env') 
     app_env:          str     = 'development'
     app_port:         int     = 8000
     log_level:        str     = 'INFO'
@@ -17,7 +19,5 @@ class Settings(BaseSettings):
         'WMT',  'PG',   'KO',
     ]
 
-    class Config:
-        env_file = '.env'
 
 settings = Settings()

@@ -33,4 +33,7 @@ def fetch_fundamentals(tickers: list[str]) -> pd.DataFrame:
         except Exception as e:
             log.warning(f"  ✗ {ticker}: {e}")
     
+    if not records:                                  
+        return pd.DataFrame()
+    
     return pd.DataFrame(records).set_index('ticker')
