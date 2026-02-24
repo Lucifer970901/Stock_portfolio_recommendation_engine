@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.routes import router
 from app.services.recommender import recommender
 from app.core.logger import get_logger
+from fastapi.staticfiles import StaticFiles
 
 log = get_logger(__name__)
 
@@ -20,3 +21,4 @@ app = FastAPI(
 )
 
 app.include_router(router)
+app.mount("/static", StaticFiles(directory="static"), name="static")

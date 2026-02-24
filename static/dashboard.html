@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stock Recommender</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #12121a;
+    --surface2: #1a1a26;
+    --border:   #2a2a3a;
+    --accent:   #c8f041;
+    --accent2:  #41f0c8;
+    --accent3:  #f04188;
+    --text:     #e8e8f0;
+    --muted:    #6a6a8a;
+    --font-display: 'Playfair Display', serif;
+    --font-body:    'DM Sans', sans-serif;
+    --font-mono:    'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background grid ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,240,65,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,240,65,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 48px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(12px);
+    animation: slideDown 0.6s ease both;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .logo h1 {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .logo-tag {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--accent);
+    background: rgba(200,240,65,0.1);
+    border: 1px solid rgba(200,240,65,0.3);
+    padding: 3px 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  /* ── Main layout ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 24px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+
+  .card:nth-child(2)::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .card:nth-child(3)::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+  .card:nth-child(4)::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+  .card:nth-child(1) { animation-delay: 0.1s; }
+  .card:nth-child(2) { animation-delay: 0.2s; }
+  .card:nth-child(3) { animation-delay: 0.3s; }
+  .card:nth-child(4) { animation-delay: 0.4s; grid-column: 1 / -1; }
+
+  .card-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .card:nth-child(2) .card-label { color: var(--accent2); }
+  .card:nth-child(3) .card-label { color: var(--accent3); }
+  .card:nth-child(4) .card-label { color: var(--muted); }
+
+  .card h2 {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+  }
+
+  /* ── Inputs ── */
+  .input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  input, select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  input::placeholder { color: var(--muted); }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(200,240,65,0.2);
+  }
+
+  select option { background: var(--surface2); }
+
+  button {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  button:hover {
+    background: #d4f55a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(200,240,65,0.3);
+  }
+
+  button:active { transform: translateY(0); }
+
+  .card:nth-child(2) button { background: var(--accent2); }
+  .card:nth-child(2) button:hover {
+    background: #5df5d4;
+    box-shadow: 0 4px 20px rgba(65,240,200,0.3);
+  }
+
+  .card:nth-child(3) button { background: var(--accent3); color: #fff; }
+  .card:nth-child(3) button:hover {
+    background: #f55a9a;
+    box-shadow: 0 4px 20px rgba(240,65,136,0.3);
+  }
+
+  /* ── Results ── */
+  .results { margin-top: 4px; }
+
+  .result-item {
+    display: grid;
+    grid-template-columns: 80px 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .result-item:last-child { border-bottom: none; }
+
+  .ticker-badge {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: rgba(200,240,65,0.08);
+    border: 1px solid rgba(200,240,65,0.2);
+    padding: 4px 10px;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .card:nth-child(2) .ticker-badge {
+    color: var(--accent2);
+    background: rgba(65,240,200,0.08);
+    border-color: rgba(65,240,200,0.2);
+  }
+
+  .result-info { min-width: 0; }
+
+  .result-sector {
+    font-size: 0.75rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .result-sub {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .similarity-bar-wrap {
+    width: 80px;
+    height: 3px;
+    background: var(--border);
+    position: relative;
+  }
+
+  .similarity-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.6s ease;
+  }
+
+  .card:nth-child(2) .similarity-bar { background: var(--accent2); }
+
+  .result-value {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* ── Optimizer results ── */
+  .optimize-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent3);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── Chart ── */
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+
+  /* ── Weight rows ── */
+  .weight-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .weight-row:last-child { border-bottom: none; }
+
+  .weight-ticker {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent3);
+    width: 60px;
+  }
+
+  .weight-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+  }
+
+  .weight-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+    transition: width 0.8s ease;
+  }
+
+  .weight-pct {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    width: 45px;
+    text-align: right;
+  }
+
+  /* ── Empty / loading states ── */
+  .empty {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    border: 1px dashed var(--border);
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .error-msg {
+    color: var(--accent3);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 12px;
+    background: rgba(240,65,136,0.08);
+    border: 1px solid rgba(240,65,136,0.2);
+    margin-top: 12px;
+  }
+
+  /* ── Tag input for portfolio ── */
+  .tag-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 8px;
+    min-height: 48px;
+    align-items: center;
+    flex: 1;
+    transition: border-color 0.2s;
+  }
+
+  .tag-input-wrap:focus-within {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1px rgba(65,240,200,0.2);
+  }
+
+  .card:nth-child(3) .tag-input-wrap:focus-within {
+    border-color: var(--accent3);
+    box-shadow: 0 0 0 1px rgba(240,65,136,0.2);
+  }
+
+  .tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(65,240,200,0.1);
+    border: 1px solid rgba(65,240,200,0.3);
+    color: var(--accent2);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    letter-spacing: 0.05em;
+  }
+
+  .card:nth-child(3) .tag {
+    background: rgba(240,65,136,0.1);
+    border-color: rgba(240,65,136,0.3);
+    color: var(--accent3);
+  }
+
+  .tag-remove {
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .tag-remove:hover { opacity: 1; }
+
+  .tag-text-input {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text);
+    width: 80px;
+    flex: 1;
+    min-width: 60px;
+  }
+
+  .tag-text-input:focus { outline: none; }
+
+  /* ── Animations ── */
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; padding: 24px; }
+    .card:nth-child(4) { grid-column: 1; }
+    header { padding: 20px 24px; }
+    .optimize-grid { grid-template-columns: 1fr 1fr; }
+  }
+  /* ── Summary box ── */
+.summary-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255,255,255,0.03);
+  border-left: 2px solid var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #b0b0c8;
+  font-style: italic;
+  animation: fadeUp 0.4s ease both;
+}
+
+.card:nth-child(2) .summary-box { border-left-color: var(--accent2); }
+.card:nth-child(3) .summary-box { border-left-color: var(--accent3); }
+
+.summarize-btn {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.7rem;
+  padding: 8px 16px;
+  width: 100%;
+}
+
+.summarize-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(200,240,65,0.05);
+  box-shadow: none;
+  transform: none;
+}
+
+.card:nth-child(2) .summarize-btn:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: rgba(65,240,200,0.05);
+}
+
+.card:nth-child(3) .summarize-btn:hover {
+  border-color: var(--accent3);
+  color: var(--accent3);
+  background: rgba(240,65,136,0.05);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <h1>StockIQ</h1>
+    <span class="logo-tag">Portfolio Engine</span>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Card 1: Similarity Search ── -->
+  <div class="card">
+    <div class="card-label">01 / Find Similar</div>
+    <h2>Stock Similarity</h2>
+    <div class="input-row">
+      <input id="similarTicker" type="text" placeholder="Enter ticker e.g. AAPL" maxlength="10"
+             onkeydown="if(event.key==='Enter') fetchSimilar()" />
+      <input id="similarN" type="number" value="5" min="1" max="10" style="width:70px;flex:none"/>
+      <button onclick="fetchSimilar()">Search</button>
+    </div>
+    <div id="similarResults" class="results">
+      <div class="empty">Enter a ticker to find similar stocks</div>
+    </div>
+  </div>
+
+  <!-- ── Card 2: Portfolio Gaps ── -->
+  <div class="card">
+    <div class="card-label">02 / Diversify</div>
+    <h2>Gap Analysis</h2>
+    <div class="input-row">
+      <div class="tag-input-wrap" id="gapTagWrap" onclick="document.getElementById('gapInput').focus()">
+        <input class="tag-text-input" id="gapInput" placeholder="Add ticker + Enter"
+               onkeydown="handleGapTag(event)" />
+      </div>
+      <button onclick="fetchGaps()">Analyze</button>
+    </div>
+    <div id="gapResults" class="results">
+      <div class="empty">Add portfolio tickers to find gaps</div>
+    </div>
+  </div>
+
+  <!-- ── Card 3: Optimizer ── -->
+  <div class="card">
+    <div class="card-label">03 / Optimize</div>
+    <h2>Portfolio Optimizer</h2>
+    <div class="input-row">
+      <div class="tag-input-wrap" id="optTagWrap" onclick="document.getElementById('optInput').focus()">
+        <input class="tag-text-input" id="optInput" placeholder="Add ticker + Enter"
+               onkeydown="handleOptTag(event)" />
+      </div>
+      <select id="riskSelect">
+        <option value="conservative">Conservative</option>
+        <option value="moderate" selected>Moderate</option>
+        <option value="aggressive">Aggressive</option>
+      </select>
+      <button onclick="fetchOptimize()">Optimize</button>
+    </div>
+    <div id="optimizeResults">
+      <div class="empty">Add tickers and click Optimize</div>
+    </div>
+  </div>
+
+  <!-- ── Card 4: Chart ── -->
+  <div class="card">
+    <div class="card-label">04 / Visualize</div>
+    <h2>Portfolio Weights</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center">
+      <div class="chart-wrap">
+        <canvas id="weightsChart"></canvas>
+      </div>
+      <div id="weightBars">
+        <div class="empty">Run the optimizer to see allocation</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = 'http://localhost:8000/api/v1';
+let weightsChart = null;
+let gapTickers   = [];
+let optTickers   = [];
+
+// ── Health check ──────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const dot  = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (d.ready) {
+      dot.style.background  = '#c8f041';
+      dot.style.boxShadow   = '0 0 8px #c8f041';
+      text.textContent = 'API Ready';
+    } else {
+      dot.style.background = '#f0a841';
+      text.textContent = 'Building...';
+      setTimeout(checkHealth, 3000);
+    }
+  } catch {
+    const dot  = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    dot.style.background = '#f04188';
+    dot.style.boxShadow  = '0 0 8px #f04188';
+    text.textContent = 'API Offline';
+  }
+}
+
+// ── Tag input helpers ─────────────────────────────────────────────────────────
+function addTag(ticker, listArr, wrapId, inputId) {
+  ticker = ticker.trim().toUpperCase();
+  if (!ticker || listArr.includes(ticker)) return;
+  listArr.push(ticker);
+  renderTags(listArr, wrapId, inputId);
+}
+
+function removeTag(ticker, listArr, wrapId, inputId) {
+  const idx = listArr.indexOf(ticker);
+  if (idx > -1) listArr.splice(idx, 1);
+  renderTags(listArr, wrapId, inputId);
+}
+
+function renderTags(listArr, wrapId, inputId) {
+  const wrap  = document.getElementById(wrapId);
+  const input = document.getElementById(inputId);
+  // Remove old tags
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  listArr.forEach(t => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `${t}<span class="tag-remove" onclick="removeTag('${t}',${listArr===gapTickers?'gapTickers':'optTickers'},'${wrapId}','${inputId}')">×</span>`;
+    wrap.insertBefore(tag, input);
+  });
+}
+
+function handleGapTag(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addTag(e.target.value, gapTickers, 'gapTagWrap', 'gapInput');
+    e.target.value = '';
+  }
+}
+
+function handleOptTag(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addTag(e.target.value, optTickers, 'optTagWrap', 'optInput');
+    e.target.value = '';
+  }
+}
+
+// ── Fetch similar ─────────────────────────────────────────────────────────────
+async function fetchSimilar() {
+  const ticker = document.getElementById('similarTicker').value.trim().toUpperCase();
+  const topN   = document.getElementById('similarN').value;
+  const el     = document.getElementById('similarResults');
+  if (!ticker) return;
+
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Searching...</div>`;
+
+  try {
+    const r = await fetch(`${API}/similar/${ticker}?top_n=${topN}`);
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    renderSimilar(data, el);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function renderSimilar(data, el) {
+  if (!data.length) { el.innerHTML = '<div class="empty">No results found</div>'; return; }
+  
+  // store for summarizer
+  window._similarData   = data;
+  window._similarTicker = document.getElementById('similarTicker').value.trim().toUpperCase();
+
+  el.innerHTML = data.map((s, i) => `
+    <div class="result-item" style="animation-delay:${i*0.05}s">
+      <span class="ticker-badge">${s.ticker}</span>
+      <div class="result-info">
+        <div class="result-sector">${s.sector}</div>
+        <div class="result-sub">β ${s.beta?.toFixed(2) ?? '—'} · vol ${(s.volatility*100)?.toFixed(1) ?? '—'}%</div>
+      </div>
+      <div class="similarity-bar-wrap">
+        <div class="similarity-bar" style="width:${Math.max(0,s.similarity*100)}%"></div>
+      </div>
+      <div class="result-value">${(s.similarity*100).toFixed(1)}%<br>
+        <span style="color:${s.momentum_6m>=0?'#c8f041':'#f04188'}">${s.momentum_6m>=0?'+':''}${(s.momentum_6m*100).toFixed(1)}%</span>
+      </div>
+    </div>
+  `).join('') + `
+    <button class="summarize-btn" onclick="fetchSummary('similar')">
+      ✦ Summarize these results
+    </button>
+    <div id="similarSummary"></div>
+  `;
+}
+
+// ── Fetch gaps ────────────────────────────────────────────────────────────────
+async function fetchGaps() {
+  const el = document.getElementById('gapResults');
+  if (!gapTickers.length) {
+    el.innerHTML = '<div class="error-msg">Add at least one ticker</div>'; return;
+  }
+
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Analyzing gaps...</div>`;
+
+  try {
+    const r = await fetch(`${API}/gaps`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ portfolio: gapTickers, top_n: 5 })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    renderGaps(data, el);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function renderGaps(data, el) {
+  if (!data.length) { el.innerHTML = '<div class="empty">No gaps found</div>'; return; }
+  
+  window._gapData = data;
+
+  el.innerHTML = data.map((s, i) => `
+    <div class="result-item" style="animation-delay:${i*0.05}s">
+      <span class="ticker-badge">${s.ticker}</span>
+      <div class="result-info">
+        <div class="result-sector">${s.sector ?? 'Unknown sector'}</div>
+        <div class="result-sub">Low correlation diversifier</div>
+      </div>
+      <div class="similarity-bar-wrap">
+        <div class="similarity-bar" style="width:${Math.max(0,(1-Math.abs(s.correlation))*100)}%"></div>
+      </div>
+      <div class="result-value">ρ ${s.correlation.toFixed(3)}</div>
+    </div>
+  `).join('') + `
+    <button class="summarize-btn" onclick="fetchSummary('gaps')">
+      ✦ Summarize these results
+    </button>
+    <div id="gapSummary"></div>
+  `;
+}
+
+// ── Fetch optimize ────────────────────────────────────────────────────────────
+async function fetchOptimize() {
+  const risk = document.getElementById('riskSelect').value;
+  const el   = document.getElementById('optimizeResults');
+  if (!optTickers.length) {
+    el.innerHTML = '<div class="error-msg">Add at least 2 tickers</div>'; return;
+  }
+
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Optimizing...</div>`;
+
+  try {
+    const r = await fetch(`${API}/optimize`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ tickers: optTickers, risk })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    renderOptimize(data, el);
+    renderChart(data.weights);
+    renderWeightBars(data.weights);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function renderOptimize(data, el) {
+  window._optimizeData = data;
+
+  el.innerHTML = `
+    <div class="optimize-grid">
+      <div class="stat-box">
+        <div class="stat-value">${(data.expected_return*100).toFixed(1)}%</div>
+        <div class="stat-label">Expected Return</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${(data.volatility*100).toFixed(1)}%</div>
+        <div class="stat-label">Volatility</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${data.sharpe_ratio.toFixed(2)}</div>
+        <div class="stat-label">Sharpe Ratio</div>
+      </div>
+    </div>
+    <button class="summarize-btn" onclick="fetchSummary('optimize')">
+      ✦ Summarize this portfolio
+    </button>
+    <div id="optimizeSummary"></div>
+  `;
+}
+
+// ── Chart ─────────────────────────────────────────────────────────────────────
+const COLORS = ['#c8f041','#41f0c8','#f04188','#f0c841','#8041f0','#41a8f0'];
+
+function renderChart(weights) {
+  const labels = Object.keys(weights);
+  const values = Object.values(weights);
+
+  if (weightsChart) weightsChart.destroy();
+
+  const ctx = document.getElementById('weightsChart').getContext('2d');
+  weightsChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values.map(v => (v*100).toFixed(1)),
+        backgroundColor: COLORS.slice(0, labels.length),
+        borderColor: '#0a0a0f',
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#12121a',
+          borderColor: '#2a2a3a',
+          borderWidth: 1,
+          titleColor: '#e8e8f0',
+          bodyColor: '#6a6a8a',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont:  { family: 'DM Mono', size: 10 },
+          callbacks: {
+            label: ctx => ` ${ctx.parsed}%`
+          }
+        }
+      },
+      animation: { duration: 800, easing: 'easeInOutQuart' }
+    }
+  });
+}
+
+function renderWeightBars(weights) {
+  const el     = document.getElementById('weightBars');
+  const entries = Object.entries(weights).sort((a,b) => b[1]-a[1]);
+  el.innerHTML = entries.map(([ticker, w], i) => `
+    <div class="weight-row">
+      <span class="weight-ticker" style="color:${COLORS[i % COLORS.length]}">${ticker}</span>
+      <div class="weight-bar-wrap">
+        <div class="weight-bar" style="width:${w*100}%;background:${COLORS[i % COLORS.length]}"></div>
+      </div>
+      <span class="weight-pct">${(w*100).toFixed(1)}%</span>
+    </div>
+  `).join('');
+}
+
+async function fetchSummary(type) {
+  const endpoints = {
+    similar:  { url: `${API}/summarize/similar`,  summaryId: 'similarSummary' },
+    gaps:     { url: `${API}/summarize/gaps`,      summaryId: 'gapSummary' },
+    optimize: { url: `${API}/summarize/optimize`,  summaryId: 'optimizeSummary' },
+  };
+
+  const { url, summaryId } = endpoints[type];
+  const el = document.getElementById(summaryId);
+  el.innerHTML = `<div class="loading"><div class="spinner"></div>Generating summary...</div>`;
+
+  let body;
+  if (type === 'similar') {
+    body = { ticker: window._similarTicker, results: window._similarData };
+  } else if (type === 'gaps') {
+    body = { portfolio: gapTickers, results: window._gapData };
+  } else {
+    body = { tickers: optTickers, risk: document.getElementById('riskSelect').value, result: window._optimizeData };
+  }
+
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    el.innerHTML = `<div class="summary-box">${data.summary}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Summary failed: ${e.message}</div>`;
+  }
+}
+// ── Init ──────────────────────────────────────────────────────────────────────
+checkHealth();
+</script>
+</body>
+</html>

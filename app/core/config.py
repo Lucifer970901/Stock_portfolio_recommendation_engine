@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     cache_ttl:        int     = 3600
     default_capital:  float   = 10000
     default_risk:     Literal['conservative', 'moderate', 'aggressive'] = 'moderate'
+    groq_api_key:    str   = ''
     
     tickers: list[str] = [
         'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA',
