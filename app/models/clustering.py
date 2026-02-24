@@ -17,7 +17,7 @@ def cluster_stocks(scaled_df: pd.DataFrame,
                    n_clusters: int = 5) -> pd.DataFrame:
     log.info(f"Clustering into {n_clusters} groups")
     
-    km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    km = KMeans(n_clusters=n_clusters, random_state=42, n_init=10, init = 'k-means++')
     combined = combined_df.copy()
     combined['cluster']       = km.fit_predict(scaled_df)
     combined['cluster_label'] = combined['cluster'].map(CLUSTER_LABELS)
