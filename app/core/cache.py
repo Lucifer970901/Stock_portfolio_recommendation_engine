@@ -26,7 +26,7 @@ class SimpleCache:
         entry = self._store.get(key)
         if entry and time.time() - entry['ts'] < self._ttl:
             self._hits += 1
-            log.info("cache_hit", key=key[:8])
+            log.info(f"cache_hit key={key[:8]}")
             return entry['data']
         self._misses += 1
         return None

@@ -8,7 +8,7 @@ from app.api.schemas import (
 )
 from app.core.validators import validate_tickers, validate_min_tickers
 from app.services.recommender import recommender
-from app.services.summarizer import summarize_similar, summarize_gaps, summarize_optimize
+from app.models.summarizer import summarize_similar, summarize_gaps, summarize_optimize
 from app.core.logger import get_logger
 from app.evaluation.backtester import backtest_optimizer, compute_portfolio_metrics
 

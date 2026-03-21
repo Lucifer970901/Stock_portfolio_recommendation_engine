@@ -5,14 +5,28 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
+    "groq>=1.1.1",
+    "huggingface-hub>=1.7.2",
+    "matplotlib>=3.10.8",
+]
+[tool.pytest.ini_options]
+pythonpath = ["."]
+dependencies = [
     "fastapi>=0.133.0",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "pyportfolioopt>=1.5.6",
+    "pytest>=9.0.2",
     "python-dotenv>=1.2.1",
     "scikit-learn>=1.7.2",
+    "tenacity>=9.1.4",
     "uvicorn>=0.41.0",
     "yfinance>=1.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
 ]

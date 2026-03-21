@@ -39,13 +39,12 @@ def sample_fundamentals():
 def sample_combined(sample_fundamentals, sample_prices):
     """Merged fundamentals + technical features"""
     from app.features.technical import compute_technical_features
-    from app.features.fundamental import merge_features
+    from app.features.fundamentals import merge_features
     technical = compute_technical_features(sample_prices)
     return merge_features(sample_fundamentals, technical)
 
 @pytest.fixture
 def sample_scaled(sample_combined):
-    """Scaled feature matrix"""
-    from app.features.fundamental import scale_features
+    from app.features.fundamentals import scale_features
     scaled, _, _ = scale_features(sample_combined)
-    return scaled
+    return scaled  
