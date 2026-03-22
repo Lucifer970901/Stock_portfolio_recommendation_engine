@@ -1,4 +1,4 @@
-# Stock Portfolio Recommender
+# Stock Portfolio Recommendation Engine
 
 An end-to-end stock portfolio recommendation engine built with FastAPI, PyPortfolioOpt, and LLM-powered summarization. The system fetches real-time fundamentals, clusters stocks by behavioral similarity, optimizes portfolios using Modern Portfolio Theory, and explains results in plain English.
 
@@ -7,11 +7,11 @@ An end-to-end stock portfolio recommendation engine built with FastAPI, PyPortfo
 ## Features
 
 - **Point-in-time fundamentals** — PE ratio, EPS TTM, revenue growth, D/E ratio calculated from quarterly reports with 45-day reporting lag to prevent lookahead bias
-- **Parallel data fetching** — 50 tickers fetched in ~17s using ThreadPoolExecutor with Tenacity retry and 24hr disk cache
+- **Parallel data fetching** — 50 tickers fetched in ~20s using ThreadPoolExecutor with Tenacity retry and 24hr disk cache
 - **Behavioral clustering** — stocks grouped by valuation + growth profile using weighted KMeans with deterministic per-ticker labels
 - **Similarity search** — separate fundamental and technical similarity matrices blended 70/30
 - **Portfolio optimization** — CAPM + EW blended expected returns with Ledoit-Wolf shrinkage covariance across three risk profiles
-- **Walk-forward backtesting** — no-lookahead validation with equal-weight baseline comparison across 8 periods
+- **Walk-forward backtesting** — no-lookahead validation with equal-weight baseline comparison across 16 periods over 5 years
 - **LLM summarization** — HuggingFace (primary) + Groq (fallback) with automatic provider switching
 - **Interactive dashboard** — dark-mode UI with real-time search, autocomplete, gap analysis, and optimizer visualization
 
@@ -167,7 +167,7 @@ The filter is applied automatically in `recommender._build_investable_universe()
 
 - **Disk cache** — fundamentals cached to `app/data/cache/` as JSON, 24hr TTL
 - **In-memory cache** — API responses cached in-process, 1hr TTL
-- **Cold fetch**: ~17s for 50 tickers
+- **Cold fetch**: ~20s for 50 tickers (5Y data)
 - **Warm cache**: ~0.5s
 
 To clear the cache:
@@ -212,29 +212,45 @@ This covers:
 3. Clustering quality (label distribution, fundamentals summary)
 4. Investable universe (excluded tickers and reasons)
 5. Similarity sanity checks (known pairs)
-6. Walk-forward backtest (all 3 risk profiles, 8 periods over 3 years)
+6. Walk-forward backtest (all 3 risk profiles, 16 periods over 5 years)
 7. Realized vs predicted metrics (return gap, vol gap, Sharpe)
 8. Scorecard (pass/warn/fail per component)
 
-### Latest evaluation results (March 2026, 3 years data)
+### Latest evaluation results (March 2026, 5 years data)
 
 ```
 Score: 10/10 PASS  |  0 WARN  |  0 FAIL
 
+Data                     : 1256 trading days (5 years)
 Backtest periods         : 16  (9-month train, 3-month test windows)
-Conservative win rate    : 38%
-Moderate win rate        : 50%  (beats equal weight in 4/8 periods)
+
+Conservative win rate    : 31%  (expected — min vol underperforms in bull markets)
+Conservative outperform  : -1.82% avg (capital preservation, not outperformance)
+
+Moderate win rate        : 50%  (beats equal weight in 8/16 periods)
 Moderate outperformance  : +1.77% avg per period
+
 Aggressive win rate      : 50%
 Aggressive outperformance: +3.04% avg per period
 
 Realized Sharpe          : 1.13  (market benchmark ~0.5)
-Volatility gap           : -0.02% (excellent)
+Volatility gap           : -0.02% (near-perfect prediction)
 Return gap               : 13.3% (within normal in-sample bounds <15%)
-Total 5Y return          : 103.97% (~20.88% annualized)
+Total 5Y return          : 103.97% (~14.9% annualized)
 Max drawdown             : -13.14%
 Calmar ratio             : 1.59
+Evaluation time          : 33.9s
 ```
+
+### Notable backtest periods
+
+| Period | Profile | Result | Driver |
+|--------|---------|--------|--------|
+| Mar–Jun 2023 | Aggressive | +45.2% vs +9.7% eq | META rally (+35.5% out) |
+| Mar–Jun 2023 | Moderate | +28.2% vs +9.7% eq | META rally (+18.4% out) |
+| Sep–Dec 2024 | Aggressive | +13.9% vs +0.4% eq | NVDA rally (+13.5% out) |
+| Mar–Jun 2022 | All profiles | Beat eq weight | Energy rotation, CVX top pick |
+| Dec 2021 | Aggressive | -8.4% vs +0.5% eq | NVDA crash (-26.7% mdd) |
 
 ---
 
@@ -297,11 +313,12 @@ GROQ_MODEL=mixtral-8x7b-32768
 
 ## Known Limitations
 
-- **Limited backtest periods** — 8 periods over 3 years provides reasonable statistical confidence. Expanding to 5+ years would further improve reliability.
+- **Conservative profile underperforms in bull markets** — by design. Min volatility concentrates in low-beta defensives (JNJ, PG) which lag in strong bull runs. Win rate of 31% over 5 years reflects this tradeoff; it is intended for capital preservation, not outperformance.
 - **TSLA momentum risk** — resolved by excluding TSLA from the investable universe (PE=363, beta=1.9). The `_build_investable_universe()` filter in `recommender.py` can be extended with additional speculative exclusions as needed.
-- **In-sample Sharpe inflation** — predicted Sharpe (2.4) vs realized (1.4) shows a +1.03 gap, within acceptable bounds for in-sample MPT optimization. Volatility prediction is near-perfect (0.10% gap). Use walk-forward backtest results for realistic out-of-sample expectations rather than the predicted Sharpe.
-- **yfinance rate limits** — cold fetch limited to ~100 requests/minute on free tier; disk cache mitigates this for repeated runs.
-- **Single market regime** — the 3-year backtest period (2023-2026) was predominantly bullish for US equities. Performance in bear markets or high-volatility regimes is untested.
+- **In-sample Sharpe inflation** — predicted Sharpe (2.1) vs realized (1.1) shows a +0.94 gap, within acceptable bounds for in-sample MPT optimization. Volatility prediction is near-perfect (-0.02% gap). Use walk-forward backtest results for realistic out-of-sample expectations rather than the predicted Sharpe.
+- **Concentration risk in aggressive profile** — worst drawdown of -26.7% (Dec 2021, NVDA) shows the aggressive profile can suffer severe single-quarter losses. Position sizing and stop-loss logic are not implemented.
+- **yfinance rate limits** — cold fetch ~20s for 50 tickers over 5 years; disk cache mitigates this for repeated runs.
+
 
 ---
 
@@ -317,3 +334,49 @@ GROQ_MODEL=mixtral-8x7b-32768
 | Config | pydantic-settings |
 | Testing | pytest |
 | Package mgmt | uv |
+
+---
+
+## Design Tradeoffs
+
+### Data & Fundamentals
+
+* **Point-in-time vs latest fundamentals** — the pipeline applies a 45-day reporting lag to quarterly data to prevent lookahead bias. This means the fundamentals used for clustering and optimization reflect what was actually known at the time, not restated values. The tradeoff is that very recent earnings surprises (within 45 days) won't be reflected until the next cache refresh.
+
+* **yfinance vs paid data provider** — yfinance is free and sufficient for a 50-ticker universe but has rate limits, occasional data gaps, and no survivorship bias protection. A paid provider (Polygon, Tiingo, Bloomberg) would give cleaner data and point-in-time index membership, at significant cost.
+
+* **Disk cache TTL of 24 hours** — fundamentals are cached for 24 hours to avoid hammering the yfinance API. This means intraday fundamental changes (rare) won't be reflected until the next day. The tradeoff between freshness and reliability favors the cache for a daily-rebalanced system.
+
+### Feature Engineering
+
+* **Clipping outliers vs removing them** — extreme values (PE > 200, D/E > 10) are clipped rather than dropped. This preserves all 50 tickers in the universe while preventing a single outlier from distorting the scaled feature space. The tradeoff is that clipped values lose precision at the extremes.
+
+* **Median imputation vs model-based imputation** — missing fundamentals are filled with the median of the column. This is simple, interpretable, and non-leaky. The tradeoff is it assumes the missing value is typical, which may not hold for distressed or unusual stocks like INTC.
+
+* **Weighted KMeans (fundamentals 2x, technical 1x, engineered 0.5x)** — fundamental features are upweighted because they reflect durable business characteristics, while technical features reflect short-term momentum. The tradeoff is the optimizer may underweight momentum signals that are genuinely predictive over 3-month horizons.
+
+### Clustering
+
+* **Deterministic per-ticker labels vs centroid-based labels**  — cluster labels are assigned from each ticker's raw fundamentals directly, not from KMeans centroids. This makes labels stable and interpretable across runs. The tradeoff is that the label doesn't capture the relative position within a cluster — two Quality Growth stocks may be very different from each other.
+
+* **Fixed n_clusters=8** — chosen from elbow analysis on the 50-ticker universe. With only 50 stocks, more clusters produce singletons (NVDA, TSLA, INTC, SLB are natural outliers). The tradeoff is that 4 singleton clusters exist, which is cosmetically unsatisfying but fundamentally correct — these stocks are genuinely outliers.
+
+### Portfolio Optimization
+
+* **CAPM + EW blended returns (70/30)** — pure CAPM anchors all expected returns to Rf + beta * market_premium, making stocks indistinguishable when beta is similar. Blending with exponentially weighted historical returns (EW) adds cross-sectional differentiation. The tradeoff is EW can overfit to recent momentum, which caused TSLA and AVGO overweighting in some periods.
+
+* **Ledoit-Wolf shrinkage covariance** — shrinks the sample covariance matrix toward a structured estimator, reducing estimation error with limited data. The tradeoff vs sample covariance is a slight bias toward equal correlations, but this is almost always preferable with fewer than 500 observations per ticker.
+
+* **Three-stage optimization fallback** — the optimizer tries max_sharpe (or min_volatility / max_quadratic_utility) first, then falls back to min_volatility with the same bounds, then relaxes bounds entirely. This prevents hard failures at the cost of occasionally producing a more conservative portfolio than requested.
+
+* **Investable universe filter** — stocks are excluded based on eps_ttm <= 0, debt_to_equity < -3, or pe_ratio > 300 + beta > 1.5. This is a rules-based filter, not a predictive model. The tradeoff is it may exclude stocks that are recovering (e.g. INTC could return to profitability) and includes stocks that may deteriorate.
+
+### Backtesting
+
+* **Walk-forward vs simple train/test split** — walk-forward retraining at each period prevents lookahead bias and gives a realistic picture of out-of-sample performance. The tradeoff is it requires more data (minimum ~15 months for even 2 periods) and is slower to compute than a single split.
+
+* **Equal weight as baseline** — the benchmark is a naive equal-weight portfolio of the same ticker universe. This is a low bar — a more rigorous benchmark would be SPY or a factor-adjusted index. The moderate optimizer beating equal weight 50% of the time over 16 periods means it adds value, but not dramatically so.
+
+* **9-month training window** — shorter than the 12-month default to maximize the number of test periods from 5 years of data (16 periods vs 12). The tradeoff is the optimizer trains on slightly less data per window, which can increase variance in weight estimates.
+
+---
